@@ -15,13 +15,13 @@ async function main() {
 
   try {
     const { data } = await axios.post(
-      `${VESYNC.BASE_URL}/cloud/v1/user/login`,
+      '/cloud/v1/user/login',
       {
-        account: email,
+        method: 'login',
+        email,
         password: pwdHashed,
         devToken: '',
         userType: 1,
-        method: 'login',
         token: '',
         traceId: Date.now(),
         appVersion: VESYNC.APP_VERSION,
@@ -30,6 +30,7 @@ async function main() {
         countryCode: VESYNC.COUNTRY_CODE
       },
       {
+        baseURL: VESYNC.BASE_URL,
         headers: {
           'Content-Type': 'application/json',
           'Accept-Language': VESYNC.LOCALE,
@@ -40,7 +41,12 @@ async function main() {
 
     console.log('code:', data.code, 'token:', data.result?.token);
   } catch (error: any) {
-    console.error('login failed', error?.response?.data ?? error.message);
+    console.error(
+      'login failed',
+      'status:', error?.response?.status,
+      'code:', error?.response?.data?.code,
+      'msg:', error?.response?.data?.msg
+    );
   }
 }
 

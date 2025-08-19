@@ -292,11 +292,11 @@ export default class VeSync {
           axios.post(
             '/cloud/v1/user/login',
             {
-              account: this.email,
+              method: 'login',
+              email: this.email,
               password: pwdHashed,
               devToken: '',
               userType: 1,
-              method: 'login',
               token: '',
               traceId: Date.now(),
               appVersion: VESYNC.APP_VERSION,
@@ -368,9 +368,15 @@ export default class VeSync {
         await delay(500);
         return true;
       } catch (error: any) {
+        const status = error?.response?.status;
         const code = error?.response?.data?.code;
         const msg = error?.response?.data?.msg;
-        this.log.error('Failed to login', `Error: ${error?.message}`, code !== undefined ? `code: ${code}, msg: ${msg}` : '');
+        this.log.error(
+          'Failed to login',
+          status !== undefined ? `status: ${status}` : '',
+          `Error: ${error?.message}`,
+          code !== undefined ? `code: ${code}, msg: ${msg}` : ''
+        );
         return false;
       }
     });
