@@ -145,3 +145,14 @@ After that to start the local server use
 ```
 yarn watch
 ```
+
+### Testing
+
+Set `VESYNC_EMAIL` and `VESYNC_PASSWORD` before running the smoke tests:
+
+```
+VESYNC_EMAIL=you@example.com VESYNC_PASSWORD=yourpassword npm run test:login
+VESYNC_EMAIL=you@example.com VESYNC_PASSWORD=yourpassword npm run test:devices
+```
+
+The scripts disable proxies via `proxy: false`; if you have `HTTP_PROXY` or `HTTPS_PROXY` set, unset them to avoid 400 errors.
