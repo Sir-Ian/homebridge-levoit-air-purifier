@@ -285,23 +285,24 @@ export default class VeSync {
 
         const pwdHashed = crypto
           .createHash('md5')
-          .update(this.password)
+          .update(this.password, 'utf8')
           .digest('hex');
 
         const response = await this.requestWithRetry(() =>
           axios.post(
-            '/cloud/v2/user/login',
+            '/cloud/v1/user/login',
             {
-              email: this.email,
+              account: this.email,
               password: pwdHashed,
+              devToken: '',
+              userType: 1,
               method: 'login',
+              token: '',
+              traceId: Date.now(),
               appVersion: VESYNC.APP_VERSION,
               clientType: VESYNC.CLIENT_TYPE,
               timeZone: VESYNC.TIMEZONE,
-              countryCode: VESYNC.COUNTRY_CODE,
-              traceId: Date.now(),
-              terminalId: this.terminalId,
-              hashPassword: 'md5'
+              countryCode: VESYNC.COUNTRY_CODE
             },
             {
               ...this.AXIOS_OPTIONS,
