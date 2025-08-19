@@ -285,23 +285,24 @@ export default class VeSync {
 
         const pwdHashed = crypto
           .createHash('md5')
-          .update(this.password)
+          .update(this.password, 'utf8')
           .digest('hex');
 
         const response = await this.requestWithRetry(() =>
           axios.post(
-            '/cloud/v2/user/login',
+            '/cloud/v1/user/login',
             {
+              method: 'login',
               email: this.email,
               password: pwdHashed,
-              method: 'login',
+              devToken: '',
+              userType: 1,
+              token: '',
+              traceId: Date.now(),
               appVersion: VESYNC.APP_VERSION,
               clientType: VESYNC.CLIENT_TYPE,
               timeZone: VESYNC.TIMEZONE,
-              countryCode: VESYNC.COUNTRY_CODE,
-              traceId: Date.now(),
-              terminalId: this.terminalId,
-              hashPassword: 'md5'
+              countryCode: VESYNC.COUNTRY_CODE
             },
             {
               ...this.AXIOS_OPTIONS,
@@ -367,9 +368,15 @@ export default class VeSync {
         await delay(500);
         return true;
       } catch (error: any) {
+        const status = error?.response?.status;
         const code = error?.response?.data?.code;
         const msg = error?.response?.data?.msg;
-        this.log.error('Failed to login', `Error: ${error?.message}`, code !== undefined ? `code: ${code}, msg: ${msg}` : '');
+        this.log.error(
+          'Failed to login',
+          status !== undefined ? `status: ${status}` : '',
+          `Error: ${error?.message}`,
+          code !== undefined ? `code: ${code}, msg: ${msg}` : ''
+        );
         return false;
       }
     });

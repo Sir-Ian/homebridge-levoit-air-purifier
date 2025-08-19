@@ -11,22 +11,26 @@ async function main() {
     process.exit(1);
   }
 
-  const pwdHashed = crypto.createHash('md5').update(password).digest('hex');
+  const pwdHashed = crypto.createHash('md5').update(password, 'utf8').digest('hex');
 
   try {
     const { data } = await axios.post(
-      `${VESYNC.BASE_URL}/cloud/v2/user/login`,
+      '/cloud/v1/user/login',
       {
+        method: 'login',
         email,
         password: pwdHashed,
-        method: 'login',
+        devToken: '',
+        userType: 1,
+        token: '',
+        traceId: Date.now(),
         appVersion: VESYNC.APP_VERSION,
         clientType: VESYNC.CLIENT_TYPE,
         timeZone: VESYNC.TIMEZONE,
-        countryCode: VESYNC.COUNTRY_CODE,
-        traceId: Date.now()
+        countryCode: VESYNC.COUNTRY_CODE
       },
       {
+        baseURL: VESYNC.BASE_URL,
         headers: {
           'Content-Type': 'application/json',
           'Accept-Language': VESYNC.LOCALE,
@@ -37,7 +41,12 @@ async function main() {
 
     console.log('code:', data.code, 'token:', data.result?.token);
   } catch (error: any) {
-    console.error('login failed', error?.response?.data ?? error.message);
+    console.error(
+      'login failed',
+      'status:', error?.response?.status,
+      'code:', error?.response?.data?.code,
+      'msg:', error?.response?.data?.msg
+    );
   }
 }
 
