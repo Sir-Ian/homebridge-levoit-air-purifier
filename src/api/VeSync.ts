@@ -288,31 +288,36 @@ export default class VeSync {
           .update(this.password, 'utf8')
           .digest('hex');
 
+        const body = {
+          method: 'login',
+          account: this.email,
+          password: pwdHashed,
+          devToken: '',
+          userType: 1,
+          token: '',
+          traceId: Date.now(),
+          appVersion: VESYNC.APP_VERSION,
+          clientType: VESYNC.CLIENT_TYPE,
+          timeZone: VESYNC.TIMEZONE,
+          countryCode: VESYNC.COUNTRY_CODE,
+          terminalId: this.terminalId
+        };
+
+        const headers = {
+          'Content-Type': 'application/json',
+          'Accept-Language': VESYNC.LOCALE,
+          'User-Agent': VESYNC.USER_AGENT
+        };
+
+        this.debugMode.debug('[LOGIN]', 'url:', `${VESYNC.BASE_URL}/cloud/v1/user/login`);
+        this.debugMode.debug('[LOGIN]', 'headers:', JSON.stringify(headers));
+        this.debugMode.debug('[LOGIN]', 'body:', JSON.stringify({ ...body, password: '<md5>' }));
+
         const response = await this.requestWithRetry(() =>
-          axios.post(
-            '/cloud/v1/user/login',
-            {
-              method: 'login',
-              email: this.email,
-              password: pwdHashed,
-              devToken: '',
-              userType: 1,
-              token: '',
-              traceId: Date.now(),
-              appVersion: VESYNC.APP_VERSION,
-              clientType: VESYNC.CLIENT_TYPE,
-              timeZone: VESYNC.TIMEZONE,
-              countryCode: VESYNC.COUNTRY_CODE
-            },
-            {
-              ...this.AXIOS_OPTIONS,
-              headers: {
-                'Content-Type': 'application/json',
-                'Accept-Language': VESYNC.LOCALE,
-                'User-Agent': VESYNC.USER_AGENT
-              }
-            }
-          )
+          axios.post('/cloud/v1/user/login', body, {
+            ...this.AXIOS_OPTIONS,
+            headers
+          })
         );
 
         if (!response?.data) {
@@ -369,13 +374,12 @@ export default class VeSync {
         return true;
       } catch (error: any) {
         const status = error?.response?.status;
-        const code = error?.response?.data?.code;
-        const msg = error?.response?.data?.msg;
+        const data = error?.response?.data;
         this.log.error(
           'Failed to login',
           status !== undefined ? `status: ${status}` : '',
           `Error: ${error?.message}`,
-          code !== undefined ? `code: ${code}, msg: ${msg}` : ''
+          data !== undefined ? `data: ${JSON.stringify(data)}` : ''
         );
         return false;
       }
