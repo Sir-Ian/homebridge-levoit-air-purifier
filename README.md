@@ -120,7 +120,7 @@ You can also do this directly via the homebridge config by adding your credentia
 
 ### Enabling Debug Mode
 
-In the config file, add `enableDebugMode: true`
+Enable verbose logging from the Homebridge UI by toggling **Enable Debug Mode** in the plugin settings. This option maps to the `enableDebugMode` property in the config. You can also set it manually:
 
 ```json
 {
