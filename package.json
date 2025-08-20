@@ -20,6 +20,7 @@
   "scripts": {
     "remove-link": "npm -g remove homebridge-levoit-air-purifier",
     "prepublishOnly": "npm run lint && npm run build",
+    "prepare": "npm run build",
     "watch": "npm run build && npm link && nodemon",
     "lint": "eslint src/**.ts --max-warnings=0",
     "build": "rimraf dist && tsc",

@@ -89,6 +89,10 @@ The timers are not included because you can accomplish similar results by using 
 
 2. Discovers supported humidifiers (`Humidifiers`)
 
+### Requirements
+
+- Node.js 18 or newer
+
 ### Configuration
 
 - Via the Homebridge UI, enter the Homebridge VeSync Client plugin settings.
@@ -145,6 +149,8 @@ After that to start the local server use
 ```
 yarn watch
 ```
+
+If you clone this repository directly, run `npm install` and `npm run build` to generate the `dist` folder required by Homebridge. Installs from GitHub via npm will trigger the build automatically via the `prepare` script.
 
 ### Testing
 
