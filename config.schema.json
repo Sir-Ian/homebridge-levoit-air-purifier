@@ -29,6 +29,20 @@
         "default": false,
         "alias": "debug",
         "description": "Enable additional debug logging"
+      "appVersion": {
+        "title": "App Version",
+        "type": "string",
+        "default": "5.6.70"
+      },
+      "os": {
+        "title": "OS",
+        "type": "string",
+        "default": "Android 14; Pixel 7"
+      },
+      "clientType": {
+        "title": "Client Type",
+        "type": "string",
+        "default": "Android"
       },
       "experimentalFeatures": {
         "title": "Experimental Features",

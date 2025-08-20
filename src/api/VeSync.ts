@@ -9,7 +9,12 @@ import VeSyncHumidifier from './VeSyncHumidifier';
 import { VeSyncGeneric } from './VeSyncGeneric';
 import DebugMode from '../debugMode';
 import VeSyncFan from './VeSyncFan';
-import { VESYNC } from '../vesync/constants';
+import {
+  VESYNC,
+  DEFAULT_APP_VERSION,
+  DEFAULT_OS,
+  DEFAULT_CLIENT_TYPE
+} from '../vesync/constants';
 
 export enum BypassMethod {
   STATUS = 'getPurifierStatus',
@@ -43,21 +48,32 @@ export default class VeSync {
   private minuteStart = Date.now();
   private requestsThisMinute = 0;
   private readonly terminalId: string;
-  private clientType: string = VESYNC.ANDROID_FINGERPRINT.clientType;
+  private clientType: string;
+  private appVersion: string;
 
   constructor(
     private readonly email: string,
     private readonly password: string,
     public readonly debugMode: DebugMode,
-    public readonly log: Logger
+    public readonly log: Logger,
+    options?: { appVersion?: string; os?: string; clientType?: string }
   ) {
+    const {
+      appVersion = DEFAULT_APP_VERSION,
+      os = DEFAULT_OS,
+      clientType = DEFAULT_CLIENT_TYPE
+    } = options || {};
+
+    this.clientType = clientType;
+    this.appVersion = appVersion;
+
     this.api = axios.create({
       baseURL: VESYNC.BASE_URL,
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
         'Accept-Language': VESYNC.LOCALE,
-        'User-Agent': VESYNC.ANDROID_FINGERPRINT.userAgent
+        'User-Agent': `VeSync/${appVersion} (${os})`
       }
     });
     this.terminalId = this.loadTerminalId();
@@ -99,7 +115,7 @@ export default class VeSync {
 
   private generateDetailBody() {
     return {
-      appVersion: VESYNC.APP_VERSION,
+      appVersion: this.appVersion,
       traceId: Date.now()
     };
   }
@@ -272,8 +288,12 @@ export default class VeSync {
   public async startSession(): Promise<boolean> {
     this.debugMode.debug('[START SESSION]', 'Starting auth session...');
     const firstLoginSuccess = await this.login();
+    if (!firstLoginSuccess) {
+      this.log.error('[START SESSION] Initial login failed');
+      return false;
+    }
     setInterval(this.login.bind(this), 1000 * 60 * 55);
-    return firstLoginSuccess;
+    return true;
   }
   private async login(): Promise<boolean> {
     return lock.acquire('api-call', async () => {
@@ -330,12 +350,14 @@ export default class VeSync {
 
         const { code, msg, result } = response.data;
         if (code !== 0) {
+          this.log.error(`[LOGIN] Failed with code ${code}, msg: ${msg}`);
           this.debugMode.debug('[LOGIN]', `Failed with code ${code}, msg: ${msg}`);
           return false;
         }
 
         const { token, accountID } = result ?? {};
         if (!token || !accountID) {
+          this.log.error('[LOGIN] Missing token or accountID in response');
           this.debugMode.debug('[LOGIN]', 'The authentication failed!! JSON:', JSON.stringify(response.data));
           return false;
         }

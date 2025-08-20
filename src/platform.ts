@@ -42,6 +42,9 @@ export interface Config extends PlatformConfig {
   enableDebugMode?: boolean;
   password: string;
   email: string;
+  appVersion?: string;
+  os?: string;
+  clientType?: string;
 }
 
 export default class Platform implements DynamicPlatformPlugin {
@@ -61,7 +64,7 @@ export default class Platform implements DynamicPlatformPlugin {
     public readonly config: Config,
     public readonly api: API
   ) {
-    const { email, password, enableDebugMode } = this.config ?? {};
+    const { email, password, enableDebugMode, appVersion, os, clientType } = this.config ?? {};
     this.debugger = new DebugMode(!!enableDebugMode, this.log);
 
     try {
@@ -73,7 +76,11 @@ export default class Platform implements DynamicPlatformPlugin {
 
       this.debugger.debug('[PLATFORM]', 'Debug mode enabled');
 
-      this.client = new VeSync(email, password, this.debugger, log);
+      this.client = new VeSync(email, password, this.debugger, log, {
+        appVersion,
+        os,
+        clientType
+      });
 
       this.api.on('didFinishLaunching', () => {
         this.discoverDevices();
@@ -122,6 +129,7 @@ export default class Platform implements DynamicPlatformPlugin {
       this.log.info('Connecting to the servers...');
       const successLogin = await this.client.startSession();
       if (!successLogin) {
+        this.log.warn('Failed to start session');
         return;
       }
 
