@@ -288,8 +288,12 @@ export default class VeSync {
   public async startSession(): Promise<boolean> {
     this.debugMode.debug('[START SESSION]', 'Starting auth session...');
     const firstLoginSuccess = await this.login();
+    if (!firstLoginSuccess) {
+      this.log.error('[START SESSION] Initial login failed');
+      return false;
+    }
     setInterval(this.login.bind(this), 1000 * 60 * 55);
-    return firstLoginSuccess;
+    return true;
   }
   private async login(): Promise<boolean> {
     return lock.acquire('api-call', async () => {
@@ -346,12 +350,14 @@ export default class VeSync {
 
         const { code, msg, result } = response.data;
         if (code !== 0) {
+          this.log.error(`[LOGIN] Failed with code ${code}, msg: ${msg}`);
           this.debugMode.debug('[LOGIN]', `Failed with code ${code}, msg: ${msg}`);
           return false;
         }
 
         const { token, accountID } = result ?? {};
         if (!token || !accountID) {
+          this.log.error('[LOGIN] Missing token or accountID in response');
           this.debugMode.debug('[LOGIN]', 'The authentication failed!! JSON:', JSON.stringify(response.data));
           return false;
         }

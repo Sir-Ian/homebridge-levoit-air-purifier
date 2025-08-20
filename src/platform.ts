@@ -129,6 +129,7 @@ export default class Platform implements DynamicPlatformPlugin {
       this.log.info('Connecting to the servers...');
       const successLogin = await this.client.startSession();
       if (!successLogin) {
+        this.log.warn('Failed to start session');
         return;
       }
 
