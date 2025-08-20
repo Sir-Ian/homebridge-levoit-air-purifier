@@ -23,6 +23,21 @@
         "required": true,
         "description": "VeSync's account password"
       },
+      "appVersion": {
+        "title": "App Version",
+        "type": "string",
+        "default": "5.6.70"
+      },
+      "os": {
+        "title": "OS",
+        "type": "string",
+        "default": "Android 14; Pixel 7"
+      },
+      "clientType": {
+        "title": "Client Type",
+        "type": "string",
+        "default": "Android"
+      },
       "experimentalFeatures": {
         "title": "Experimental Features",
         "type": "array",
