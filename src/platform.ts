@@ -145,7 +145,7 @@ export default class Platform implements DynamicPlatformPlugin {
         await Promise.all(humidifiers.map(this.loadDevice.bind(this)));
       }
 
-      this.checkOldDevices();
+      await this.checkOldDevices();
     } catch (error: any) {
       this.log.error(`Error: ${error?.message}`);
     }
@@ -217,7 +217,7 @@ export default class Platform implements DynamicPlatformPlugin {
     }
   }
 
-  private checkOldDevices() {
+  private async checkOldDevices() {
     const registeredDevices = this.registeredDevices.reduce(
       (acc, device) => ({
         ...acc,
@@ -237,24 +237,27 @@ export default class Platform implements DynamicPlatformPlugin {
       {}
     );
 
-    this.cachedAccessories.map((accessory) => {
-      try {
-        const exists = registeredDevices[accessory.UUID];
-        const additional = additionalAccessories[accessory.UUID];
+    await Promise.all(
+      this.cachedAccessories.map(async (accessory) => {
+        try {
+          const exists = registeredDevices[accessory.UUID];
+          const additional = additionalAccessories[accessory.UUID];
 
-        if (!exists) {
-          this.log.info('Remove cached accessory:', accessory.displayName);
-          this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
-            accessory,
-            ...(additional ? additional : [])
-          ]);
+          if (!exists) {
+            this.log.info('Remove cached accessory:', accessory.displayName);
+            await this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
+              accessory,
+              ...(additional ? additional : [])
+            ]);
+          }
+        } catch (error: any) {
+          this.log.error(
+            `Error for device: ${accessory.displayName} | ${error?.message}`
+          );
+          throw error;
         }
-      } catch (error: any) {
-        this.log.error(
-          `Error for device: ${accessory.displayName} | ${error?.message}`
-        );
-      }
-    });
+      })
+    );
   }
 
   private loadAdditional(device: VeSyncFan) {
