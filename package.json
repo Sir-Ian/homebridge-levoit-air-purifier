@@ -4,7 +4,7 @@
   "displayName": "Levoit Air Purifier",
   "main": "dist/index.js",
   "license": "Apache-2.0",
-  "version": "3.1.0",
+  "version": "4.0.0",
   "private": false,
   "bugs": {
     "url": "https://github.com/RaresAil/homebridge-levoit-air-purifier/issues"
@@ -22,8 +22,10 @@
     "prepublishOnly": "npm run lint && npm run build",
     "watch": "npm run build && npm link && nodemon",
     "lint": "eslint src/**.ts --max-warnings=0",
-    "build": "rimraf ./dist && tsc",
-    "start": "npm run build && nodemon"
+    "build": "rimraf dist && tsc",
+    "start": "npm run build && nodemon",
+    "test:login": "node dist/scripts/test-login.js",
+    "test:devices": "node dist/scripts/test-devices.js"
   },
   "devDependencies": {
     "@types/async-lock": "^1.4.2",
@@ -40,7 +42,7 @@
   },
   "engines": {
     "homebridge": ">=1.3.5",
-    "node": ">=16"
+    "node": ">=18"
   },
   "dependencies": {
     "async-lock": "^1.4.1",

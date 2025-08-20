@@ -36,18 +36,14 @@ const lock = new AsyncLock();
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default class VeSync {
-  private api?: AxiosInstance;
+  private api: AxiosInstance;
   private accountId?: string;
   private token?: string;
   private lastRequest = 0;
   private minuteStart = Date.now();
   private requestsThisMinute = 0;
   private readonly terminalId: string;
-
-  private readonly AXIOS_OPTIONS = {
-    baseURL: VESYNC.BASE_URL,
-    timeout: 30000
-  };
+  private clientType: string = VESYNC.ANDROID_FINGERPRINT.clientType;
 
   constructor(
     private readonly email: string,
@@ -55,6 +51,15 @@ export default class VeSync {
     public readonly debugMode: DebugMode,
     public readonly log: Logger
   ) {
+    this.api = axios.create({
+      baseURL: VESYNC.BASE_URL,
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept-Language': VESYNC.LOCALE,
+        'User-Agent': VESYNC.ANDROID_FINGERPRINT.userAgent
+      }
+    });
     this.terminalId = this.loadTerminalId();
   }
 
@@ -74,6 +79,24 @@ export default class VeSync {
     }
   }
 
+  private maskEmail(email: string) {
+    return email.replace(/(.).+(@.*)/, '$1***$2');
+  }
+
+  private logAxiosError(prefix: string, error: any) {
+    const status = error?.response?.status;
+    const data = error?.response?.data;
+    let msg = '';
+    if (data) {
+      if (typeof data === 'string') {
+        msg = data.replace(new RegExp(this.email, 'gi'), this.maskEmail(this.email)).slice(0, 200);
+      } else {
+        msg = `code: ${data.code}, msg: ${data.msg}`;
+      }
+    }
+    this.log.error(`${prefix} status: ${status ?? 'unknown'} ${msg}`);
+  }
+
   private generateDetailBody() {
     return {
       appVersion: VESYNC.APP_VERSION,
@@ -83,10 +106,9 @@ export default class VeSync {
 
   private generateBody(includeAuth = false) {
     return {
-      acceptLanguage: VESYNC.LOCALE,
       timeZone: VESYNC.TIMEZONE,
       countryCode: VESYNC.COUNTRY_CODE,
-      clientType: VESYNC.CLIENT_TYPE,
+      clientType: this.clientType,
       ...(includeAuth
         ? {
           accountID: this.accountId,
@@ -158,10 +180,6 @@ export default class VeSync {
   ): Promise<boolean> {
       return lock.acquire('api-call', async () => {
         try {
-          if (!this.api) {
-            throw new Error('The user is not logged in!');
-          }
-
           this.debugMode.debug(
             '[SEND COMMAND]',
             `Sending command ${method} to ${fan.name}`,
@@ -169,7 +187,7 @@ export default class VeSync {
           );
 
           const response = await this.requestWithRetry(() =>
-            this.api!.put('/cloud/v2/deviceManaged/bypassV2', {
+            this.api.put('/cloud/v2/deviceManaged/bypassV2', {
               ...this.generateV2Body(fan, method, body),
               ...this.generateDetailBody(),
               ...this.generateBody(true)
@@ -199,13 +217,7 @@ export default class VeSync {
 
         return isSuccess;
         } catch (error: any) {
-          const code = error?.response?.data?.code;
-          const msg = error?.response?.data?.msg;
-          this.log.error(
-            `Failed to send command ${method} to ${fan?.name}`,
-            `Error: ${error?.message}`,
-            code !== undefined ? `code: ${code}, msg: ${msg}` : ''
-          );
+          this.logAxiosError(`Failed to send command ${method} to ${fan?.name}`, error);
           return false;
         }
       });
@@ -214,14 +226,10 @@ export default class VeSync {
   public async getDeviceInfo(fan: VeSyncGeneric, humidifier = false): Promise<any> {
     return lock.acquire('api-call', async () => {
         try {
-          if (!this.api) {
-            throw new Error('The user is not logged in!');
-          }
-
           this.debugMode.debug('[GET DEVICE INFO]', 'Getting device info...');
 
           const response = await this.requestWithRetry(() =>
-            this.api!.post(
+            this.api.post(
               '/cloud/v2/deviceManaged/bypassV2',
               {
                 ...this.generateV2Body(fan, humidifier ? HumidifierBypassMethod.STATUS : BypassMethod.STATUS),
@@ -254,13 +262,7 @@ export default class VeSync {
 
           return response.data;
         } catch (error: any) {
-          const code = error?.response?.data?.code;
-          const msg = error?.response?.data?.msg;
-          this.log.error(
-            `Failed to get device info for ${fan?.name}`,
-            `Error: ${error?.message}`,
-            code !== undefined ? `code: ${code}, msg: ${msg}` : ''
-          );
+          this.logAxiosError(`Failed to get device info for ${fan?.name}`, error);
 
           return null;
         }
@@ -273,7 +275,6 @@ export default class VeSync {
     setInterval(this.login.bind(this), 1000 * 60 * 55);
     return firstLoginSuccess;
   }
-
   private async login(): Promise<boolean> {
     return lock.acquire('api-call', async () => {
       try {
@@ -283,49 +284,47 @@ export default class VeSync {
 
         this.debugMode.debug('[LOGIN]', 'Logging in...');
 
-        const pwdHashed = crypto
-          .createHash('md5')
-          .update(this.password, 'utf8')
-          .digest('hex');
+        const md5Hex = crypto.createHash('md5').update(this.password, 'utf8').digest('hex');
 
-        const body = {
-          method: 'login',
-          account: this.email,
-          password: pwdHashed,
-          devToken: '',
-          userType: 1,
-          token: '',
-          traceId: Date.now(),
-          appVersion: VESYNC.APP_VERSION,
-          clientType: VESYNC.CLIENT_TYPE,
-          timeZone: VESYNC.TIMEZONE,
-          countryCode: VESYNC.COUNTRY_CODE,
-          terminalId: this.terminalId
+        const attempt = async () => {
+          const bodyCommon = {
+            method: 'login',
+            password: md5Hex,
+            appVersion: VESYNC.APP_VERSION,
+            clientType: this.clientType,
+            timeZone: VESYNC.TIMEZONE,
+            countryCode: VESYNC.COUNTRY_CODE,
+            traceId: Date.now(),
+            terminalId: this.terminalId
+          };
+          try {
+            return await this.requestWithRetry(() =>
+              this.api.post('/cloud/v1/user/login', { ...bodyCommon, account: this.email })
+            );
+          } catch {
+            return await this.requestWithRetry(() =>
+              this.api.post('/cloud/v1/user/login', { ...bodyCommon, email: this.email })
+            );
+          }
         };
 
-        const headers = {
-          'Content-Type': 'application/json',
-          'Accept-Language': VESYNC.LOCALE,
-          'User-Agent': VESYNC.USER_AGENT
-        };
-
-        this.debugMode.debug('[LOGIN]', 'url:', `${VESYNC.BASE_URL}/cloud/v1/user/login`);
-        this.debugMode.debug('[LOGIN]', 'headers:', JSON.stringify(headers));
-        this.debugMode.debug('[LOGIN]', 'body:', JSON.stringify({ ...body, password: '<md5>' }));
-
-        const response = await this.requestWithRetry(() =>
-          axios.post('/cloud/v1/user/login', body, {
-            ...this.AXIOS_OPTIONS,
-            headers
-          })
-        );
+        let response;
+        try {
+          response = await attempt();
+        } catch (error: any) {
+          const status = error?.response?.status;
+          const msg = error?.response?.data?.msg;
+          if (status === 400 || status === 403 || msg === 'Forbidden') {
+            this.clientType = VESYNC.IOS_FINGERPRINT.clientType;
+            this.api.defaults.headers['User-Agent'] = VESYNC.IOS_FINGERPRINT.userAgent;
+            response = await attempt();
+          } else {
+            throw error;
+          }
+        }
 
         if (!response?.data) {
-          this.debugMode.debug(
-            '[LOGIN]',
-            'No response data!! JSON:',
-            JSON.stringify(response)
-          );
+          this.debugMode.debug('[LOGIN]', 'No response data!! JSON:', JSON.stringify(response));
           return false;
         }
 
@@ -337,11 +336,7 @@ export default class VeSync {
 
         const { token, accountID } = result ?? {};
         if (!token || !accountID) {
-          this.debugMode.debug(
-            '[LOGIN]',
-            'The authentication failed!! JSON:',
-            JSON.stringify(response.data)
-          );
+          this.debugMode.debug('[LOGIN]', 'The authentication failed!! JSON:', JSON.stringify(response.data));
           return false;
         }
 
@@ -350,37 +345,13 @@ export default class VeSync {
         this.accountId = accountID;
         this.token = token;
 
-        if (!this.api) {
-          this.api = axios.create({
-            ...this.AXIOS_OPTIONS,
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept-Language': VESYNC.LOCALE,
-              'User-Agent': VESYNC.USER_AGENT,
-              accountid: this.accountId!,
-              appVersion: VESYNC.APP_VERSION,
-              clientType: VESYNC.CLIENT_TYPE,
-              timeZone: VESYNC.TIMEZONE,
-              countryCode: VESYNC.COUNTRY_CODE,
-              tk: this.token!
-            }
-          });
-        } else {
-          (this.api.defaults.headers as any).tk = this.token!;
-          (this.api.defaults.headers as any).accountid = this.accountId!;
-        }
+        this.api.defaults.headers.tk = this.token!;
+        this.api.defaults.headers.accountid = this.accountId!;
 
         await delay(500);
         return true;
       } catch (error: any) {
-        const status = error?.response?.status;
-        const data = error?.response?.data;
-        this.log.error(
-          'Failed to login',
-          status !== undefined ? `status: ${status}` : '',
-          `Error: ${error?.message}`,
-          data !== undefined ? `data: ${JSON.stringify(data)}` : ''
-        );
+        this.logAxiosError('Failed to login', error);
         return false;
       }
     });
@@ -392,11 +363,8 @@ export default class VeSync {
       humidifiers: VeSyncHumidifier[];
     }>('api-call', async () => {
       try {
-        if (!this.api) {
-          throw new Error('The user is not logged in!');
-        }
         const response = await this.requestWithRetry(() =>
-          this.api!.post('/cloud/v2/deviceManaged/devices', {
+          this.api.post('/cloud/v2/deviceManaged/devices', {
             method: 'devices',
             pageNo: 1,
             pageSize: 1000,
@@ -418,7 +386,7 @@ export default class VeSync {
           };
         }
 
-        const { code, msg } = response.data ?? {};
+        const { code, msg, result } = response.data ?? {};
         if (code !== 0) {
           this.debugMode.debug('[GET DEVICES]', `code: ${code}, msg: ${msg}`);
           return {
@@ -427,7 +395,15 @@ export default class VeSync {
           };
         }
 
-        if (!Array.isArray(response.data?.result?.list)) {
+        const region = result?.deviceRegion;
+        if (region) {
+          this.log.info(`deviceRegion: ${region}`);
+          if (region !== 'US') {
+            this.log.warn('Non-US region detected');
+          }
+        }
+
+        if (!Array.isArray(result?.list)) {
           this.debugMode.debug(
             '[GET DEVICES]',
             'No list found!! JSON:',
@@ -440,7 +416,7 @@ export default class VeSync {
           };
         }
 
-        const { list } = response.data.result ?? { list: [] };
+        const { list } = result ?? { list: [] };
 
         this.debugMode.debug(
           '[GET DEVICES]',
@@ -485,9 +461,7 @@ export default class VeSync {
           humidifiers
         };
       } catch (error: any) {
-        const code = error?.response?.data?.code;
-        const msg = error?.response?.data?.msg;
-        this.log.error('Failed to get devices', `Error: ${error?.message}`, code !== undefined ? `code: ${code}, msg: ${msg}` : '');
+        this.logAxiosError('Failed to get devices', error);
         return {
           purifiers: [],
           humidifiers: []

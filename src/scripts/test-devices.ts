@@ -59,7 +59,7 @@ async function login(email: string, password: string) {
     };
     try {
       return await api.post('/cloud/v1/user/login', { ...bodyCommon, account: email });
-    } catch (e) {
+    } catch {
       return await api.post('/cloud/v1/user/login', { ...bodyCommon, email });
     }
   };
@@ -74,15 +74,11 @@ async function login(email: string, password: string) {
     const status = error?.response?.status;
     const msg = error?.response?.data?.msg;
     if (status === 400 || status === 403 || msg === 'Forbidden') {
-      try {
-        const response = await attempt(
-          VESYNC.IOS_FINGERPRINT.clientType,
-          VESYNC.IOS_FINGERPRINT.userAgent
-        );
-        return response.data;
-      } catch (err: any) {
-        throw err;
-      }
+      const response = await attempt(
+        VESYNC.IOS_FINGERPRINT.clientType,
+        VESYNC.IOS_FINGERPRINT.userAgent
+      );
+      return response.data;
     }
     throw error;
   }
@@ -98,17 +94,33 @@ async function main() {
   }
 
   try {
-    const data = await login(email, password);
-    if (data.code === 0) {
-      api.defaults.headers.tk = data.result?.token;
-      api.defaults.headers.accountid = data.result?.accountID;
-      console.log('Login successful');
+    const loginData = await login(email, password);
+    if (loginData.code !== 0) {
+      console.error(`Login failed code: ${loginData.code} msg: ${loginData.msg}`);
+      process.exit(1);
+    }
+    api.defaults.headers.tk = loginData.result?.token;
+    api.defaults.headers.accountid = loginData.result?.accountID;
+
+    const { status, data } = await api.post('/cloud/v2/deviceManaged/devices', { method: 'devices' });
+    if (status !== 200) {
+      console.error(`Device request failed status: ${status}`);
+      process.exit(1);
+    }
+    const region = data?.result?.deviceRegion;
+    console.log('deviceRegion:', region);
+    if (region && region !== 'US') {
+      console.warn('Warning: non-US region');
+    }
+    const list = data?.result?.list;
+    if (Array.isArray(list) && list.some((d: any) => d.deviceName === 'Core200S')) {
+      console.log('Core200S found');
       process.exit(0);
     }
-    console.error(`Login failed code: ${data.code} msg: ${data.msg}`);
+    console.error('Core200S not found');
     process.exit(1);
   } catch (error: any) {
-    logError('Login failed', error, email);
+    logError('Device test failed', error, email);
     process.exit(1);
   }
 }
