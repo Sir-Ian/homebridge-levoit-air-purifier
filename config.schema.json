@@ -23,6 +23,13 @@
         "required": true,
         "description": "VeSync's account password"
       },
+      "enableDebugMode": {
+        "title": "Enable Debug Mode",
+        "type": "boolean",
+        "default": false,
+        "aliases": ["debug"],
+        "description": "Enable additional debug logging"
+      },
       "experimentalFeatures": {
         "title": "Experimental Features",
         "type": "array",
